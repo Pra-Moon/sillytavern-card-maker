@@ -27,7 +27,7 @@ description: 为 SillyTavern（酒馆）制作与修改角色卡，尤其基于�
 1. **题材与玩法**：什么世界观、玩家扮演谁、核心乐趣是什么（恋爱养成 / 冒险 / 经营 / 系统流……）。
 2. **变量需求**：需要记什么状态（好感度、时间、物品栏、任务、NPC……）。这决定一切，先想清楚。
 3. **界面需求**：要不要状态栏？要不要可交互前端（点按钮买东西/接任务）？要不要**创角/开局表单**（填表选配置再开局，系统流卡几乎必备）？
-4. **是否改现有卡**：是则用 `python scripts/extract_card.py <卡.png|json> <输出目录>` 先拆出卡内容再改（`card.json` 里自动生成的 `extensions_extra` 原样保留，重建时不会丢 `depth_prompt` 等字段）。
+4. **是否改现有卡**：是则用 `python scripts/extract_card.py <卡.png|json> <输出目录>` 先拆出卡内容再改（`card.json` 里自动生成的 `extensions_extra` 原样保留，重建时不会丢 `depth_prompt` 等字段）；改卡的维护流程与陷阱见下文「**修改与维护现有卡**」一章，动工前先读。
 
 ### 1. 建立卡工程目录
 
@@ -44,6 +44,7 @@ description: 为 SillyTavern（酒馆）制作与修改角色卡，尤其基于�
 │   └── ...
 ├── 界面/              # 可选：前端界面 HTML 源文件（供维护；打包时内联进正则）
 │   └── 状态栏.html
+├── tools/             # 可选：维护脚本（patch_*.py 幂等补丁、assemble_regex.py、audit_consistency.py、apply_cover_text.py），见「修改与维护现有卡」
 ├── meta.json          # 可选：{"scripts_disabled": [...], "script_buttons": {...}}
 ├── 说明.md            # 玩家安装/使用说明（用 templates/readme-template.md）
 └── (底图.png)         # 可选：卡面图，打包 PNG 用
@@ -120,6 +121,45 @@ python scripts/build_card.py <卡工程目录> --image 底图.png   # 无底图�
 
 可选增强：挂一个 `自动安装插件` 脚本（`import 'https://testingcf.jsdelivr.net/gh/StageDog/tavern_resource/dist/酒馆助手/自动安装插件/index.js'`），玩家缺依赖时弹窗一键安装；同类工具脚本（自动允许卡内正则、角色卡绑定预设等）见 `references/ecosystem.md`。发布前用 `check_card.py` 扫掉 localhost 等开发残留。
 
+## 修改与维护现有卡（改卡是高频任务，比新建更容易翻车）
+
+### 标准作业流程（每轮照做，清单见 `templates/维护检查清单.md`）
+
+1. **备份**：先建 `备份-<主题>前/`，拷入将动的文件（card.json / worldbook.json / 说明.md / 相关 scripts、界面、tools）与 `输出/` 成品。
+2. **写幂等补丁脚本**（`tools/patch_<主题>.py`），不要直接手改大 JSON：
+   - 每条替换先 **assert 锚点恰好出现 1 次**，全部断言通过再落盘（改一半失败＝半坏状态）；
+   - 脚本开头做幂等检查（检测到已打过则跳过），可安全重复运行；
+   - worldbook 用 JSON 感知替换（load → 改 content → dump，保 CRLF）；card.json 用保形字符串替换（保原格式与结尾换行）；`界面/*.html` 改完后重跑 `tools/assemble_regex.py` 重组 regex.json。
+3. **改完必跑**（顺序固定）：`check_card.py <工程>` → `build_card.py <工程> --image 底图.png` → `check_card.py 输出/<卡名>.json` → `tools/audit_consistency.py`（工程自带的扩展审计）。
+4. **收尾**：版本号 +0.1；`说明.md` / creator_notes 同步；新机制往 audit 关键词表追加（防回归）。
+
+### 锚点与格式陷阱（被坑过，先看再改）
+
+- **全角/半角冒号**：中文文本里「不空转：」与「不空转:」是两个字符——锚点必须先从文件 dump 原文核对，勿凭记忆写。
+- JSON 里换行是 `\n` 两个字符的转义；往 JSON 字符串插内容时注意写进去的是字面 `\n` 还是真换行。
+- 分隔条等号按原文（`===世界设定结束===` 是 3 个等号）；uid 数字字符串键勿数错。
+- 保持文件原行尾（CRLF/LF）、BOM、结尾换行习惯；dump 前后 diff 验证。
+
+### 世界书条目增删的位置惯例
+
+- 新条目插在分隔条「===世界设定结束===」（3 个等号；该条目 content 为空，分隔文字就在 comment 里）**之前**；分隔条 uid 让位重编（如 40→42），保持显示有序。
+- uid 取空闲号；新条目字段集直接复制同位置同类型现成条目（constant / position / depth / role 一致），只改 uid、comment、content、order。
+
+### 变体起点：优先做成开局，不要维护第二张卡
+
+想做「另一条线 / 另一种起点」的变体时，**直接加 `alternate_greetings` 开局**（各自带完整 `<initvar>`），不要另开工程维护第二张卡——实测：独立变体卡最终被放弃、内容合并回主卡开局。开工前先问用户要哪种。
+
+### 常驻 vs 关键词触发（省 token 的大头）
+
+- **一次性/流程性条目**（如创角表单协议）不应常驻：改绿灯关键词触发（`key` 如 `["开局配置", "OpeningConfig"]`），提交表单后自动生效数轮，不再每轮占位（实测省约 1900 字/轮）。
+- 转换时必须**补一个小的「兜底」常驻条目**，保住直启 / 老存档等边缘路径（如「未用表单直接开聊 → 用 [initvar] 默认值」，约 150 字）。
+- 跨幕关系、长期状态相关的条目**必须常驻**，不能绿灯。
+
+### 赘述体检与去重（`scripts/scan_duplicates.py`）
+
+- 体检：行级精确查重 + 句级模糊查重（difflib ≥0.55），跨条目与条目内各扫一遍，附条目字数排行（常驻/条件分开）。
+- 处理原则：**单一权威源 + 短指针**——数值只留「变量更新规则」、定义只留一个机制条目，其余改「见『XXX』」；**咒语型短指针**（如 `见「遭遇导演术」`）是执行锚点，只压短不删；例子与味道句不删；按节省字数排优先级执行。
+
 ## 关键纪律（都是机器消费的接口，错了不报错、只是静静地不工作）
 
 - **条目名称里只有两个前缀是硬接口**：`[initvar]…`（MVU 靠名字识别初始值，且必须禁用）、`[mvu_update]…`（标记"只发给变量更新轮"的条目 = 支持额外模型解析模式）。其余名称（变量列表/更新规则/输出格式）是社区约定——实测卡会用 `[系统]当前变量情况`、`（EJS）MVU账本记录发送` 等自定义名，可接受，但别用 `get_message_variable` 旧宏。
@@ -147,6 +187,8 @@ python scripts/build_card.py <卡工程目录> --image 底图.png   # 无底图�
 | `references/opening-forms.md` | 做创角/开局表单：占位符体系、三种提交通道、协议条目写法 |
 | `references/xiaobaix.md` | 走小白X路线：代码块渲染开关、变量管理 2.0、小白板、与酒馆助手混用注意 |
 | `references/content-craft.md` | 写角色设定/世界书内容/开场白，追求"能卖"的叙事质量 |
+| `references/adult-events.md` | 制作/修改含成人情节的卡：演出时长控制、事件构成与边界、触发密度、计分护栏、镜头聚焦、事件库模式、用词条款、主角人设与人称策略 |
+| `references/cover-art.md` | 做/换卡面图：封面工作流（裁水印、文字叠层、rebuild 校验）、PIL 文字重影顺序坑、受限平台图像生成分诊与尺度边界 |
 
 ## 常见故障速查
 
@@ -162,5 +204,10 @@ python scripts/build_card.py <卡工程目录> --image 底图.png   # 无底图�
 | 你本地正常、玩家那边界面/脚本失效 | 检查卡内是否残留 localhost/开发地址导入（`check_card.py` 会警告）；玩家缺扩展时可用「自动安装插件」脚本引导 |
 | 更新块大量出现在提示词 | `[不发送]去除变量更新` 正则的 `promptOnly` 没勾，或深度设置写反（应 null/null 或 minDepth，别用 maxDepth） |
 | 玩家导入卡后无正则 | 首次弹窗"允许该角色的正则脚本"被拒绝 → 扩展设置→正则→重新允许 |
+| 改完卡却发现成品没变化 | 忘记重新打包：`build_card.py` 才会更新 `输出/`；改世界书/正则/脚本/底图后必须重建 |
+| 补丁脚本锚点找不到（count=0） | 全角/半角冒号、等号数量、JSON 转义差异——先从文件 dump 原文再定锚点，勿凭记忆写 |
+| 新机制改动后担心静默回归 | 每加机制就往 `tools/audit_consistency.py` 的 KEYWORDS 追加一条，成品抽查会连带校验 |
+| 图像生成报 internal server error | 先用无害提示词对照测试分诊：能出图＝内容审核（走单变量降级法）、也报错＝服务波动稍后重试；详见 `references/cover-art.md` |
+| 玩家反馈「事件两三句就结束 / 围观群众抢戏 / 数值随演出膨胀」 | 成人卡演出系统的三个经典缺陷，配方见 `references/adult-events.md` |
 
 更详细的排错（含日志文本对照）见 `references/mvu.md` 的诊断节与 `references/ecosystem.md`。

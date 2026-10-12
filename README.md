@@ -9,12 +9,14 @@
 
 一个遵循 Agent Skills 规范（`SKILL.md`）的领域技能：给 AI 装上"酒馆写卡师傅"的完整方法论 + 可运行工具 + 现成模板。
 
-- 🧠 **知识**：`references/` 9 份深度文档——MVU zod 变量规范、酒馆正则（含闸门校验）、EJS 提示词模板、前端界面、创角表单、小白X、卡文件格式、内容构筑、生态选型
-- 🛠️ **工具**：`scripts/` 3 个零依赖 Python CLI
+- 🧠 **知识**：`references/` 11 份深度文档——MVU zod 变量规范、酒馆正则（含闸门校验）、EJS 提示词模板、前端界面、创角表单、小白X、卡文件格式、内容构筑、生态选型、**成人向事件演出设计**、**卡面与图像资产**
+- 🛠️ **工具**：`scripts/` 5 个 Python CLI——3 个零依赖主流程工具 + 2 个维护工具（封面脚本需 Pillow）
   - `build_card.py` —— 卡工程 → 完备卡（世界书内嵌 `character_book`、正则入 `regex_scripts`、脚本入 `tavern_helper`，PNG `chara`/`ccv3` 元数据，**未知扩展字段全保真**）
   - `check_card.py` —— 工程/成品 30+ 项硬伤检查（条目约定、正则语法、闸门配套、localhost 残留、历史格式……）
   - `extract_card.py` —— 现有卡拆包为可编辑工程（兼容四种历史脚本存储格式）
-- 📦 **模板**：`templates/` 17 个——卡/世界书骨架、正则四件套、闸门组、交互式状态栏 HTML、创角表单骨架、变量结构（含健壮版）、输出纪律条目、玩家说明
+  - `scan_duplicates.py` —— 世界书赘述体检：行级精确查重 + 句级模糊查重（跨条目 / 条目内），附条目字数排行
+  - `apply_cover_text.py` —— AI 插画 → 768 卡面底图（裁平台水印、暗角渐变、标题叠层；需 Pillow）
+- 📦 **模板**：`templates/` 18 个——卡/世界书骨架、正则四件套、闸门组、交互式状态栏 HTML、创角表单骨架、变量结构（含健壮版）、输出纪律条目、玩家说明、**改卡维护检查清单**
 - 📊 **评测**：`evals/` 附 3 个实测评测用例
 
 ## 覆盖的技术栈（四组件生态）
@@ -59,9 +61,15 @@ python -X utf8 scripts/check_card.py <工程目录|卡.json|卡.png>
 
 # 打包（--image 提供底图则输出 PNG 卡）
 python -X utf8 scripts/build_card.py <工程目录> --image 底图.png
+
+# 世界书赘述体检（三种输入皆可：世界书 json / 卡工程目录 / 成品卡 json）
+python -X utf8 scripts/scan_duplicates.py <卡工程目录|成品卡.json> [--top 25]
+
+# AI 插画 → 卡面底图（需 Pillow）
+python -X utf8 scripts/apply_cover_text.py <输入图> 底图.png --title "标 题" --sub "副标题"
 ```
 
-零第三方依赖（Python 3.10+）。Windows 中文环境建议 `python -X utf8` 运行以免编码问题。
+除封面脚本需 Pillow 外，其余工具零第三方依赖（Python 3.10+）。Windows 中文环境建议 `python -X utf8` 运行以免编码问题。
 
 ## 质量与验证
 
