@@ -1,6 +1,7 @@
 # 前端界面（状态栏与交互 UI）实战
 
-> 创角/开场表单（提交方式、协议条目）见 `references/opening-forms.md`；"闸门校验"见 `references/regex.md` §⑥。
+> 创角/开场表单（提交方式、协议条目）见 `references/opening-forms.md`；"闸门校验"见 `references/regex.md` §⑥。  
+> 女性主角「腔内/断面」差分图（单图 vs 拆腔、18 帧矩阵、边框不压图、窄屏缩放、外部世界书状态别名）见 `references/female-statusbar-cavity.md`。
 
 ## 1. 渲染机制（为什么这样写才行）
 
@@ -135,6 +136,33 @@ iframe 自带全局 Vue（`Vue.createApp`）+ VueRouter（用 `history: VueRoute
 | 卡片式容器少用不透明大背景 | 与酒馆样式融合更好；需要卡面设计时再上背景 |
 | 用 `rem/em` 或固定 `px` 层级分明 | 别用视口单位 |
 
+### 7.0 ★响应式：用 `@container` 查询（PC/安卓双端一次搞定）
+
+状态栏在手机（安卓 WebView）与 PC 上的可用宽度差很多，**硬编码 flex 行在窄屏会挤爆/换行错位**。实测最省事的做法是**容器查询**而非媒体查询——iframe 宽度变化时 `@media` 不重算，`@container` 会：
+
+```css
+/* 外层容器声明为容器 */
+.status-container { container-type: inline-size; }
+
+/* 宽屏：左（进度条列） + 右（竖向仪表）并排 */
+.self-sex-wrap { display: flex; flex-wrap: wrap; gap: 12px 14px; }
+.self-sex-left  { flex: 1 1 180px; min-width: 0; }   /* 注意 min-width:0，否则子项撑破 */
+.self-sex-right { flex: 0 0 auto; }
+
+/* 窄屏（手机）：改为纵向堆叠 + 竖向仪表转横向 */
+@container (max-width: 420px) {
+  .self-sex-wrap { flex-direction: column; align-items: stretch; }
+  .self-quick-gauge { width: auto; height: 14px; }      /* 竖向条 → 横向条 */
+}
+```
+
+实测坑点（都被打回过）：
+
+- **flex 子项必须 `min-width: 0`**（或 `flex-basis` 用具体值）；否则内部长文本会把并排布局顶到换行——`flex-basis: auto` 是重灾区。
+- **`@container` 必须挂在声明了 `container-type` 的祖先上**，不能写在 iframe 根上就指望生效。
+- 竖向仪表在窄屏要**真的转横向**（改 `width/height` + 阈值刻度标记改 `left/bottom`），不是简单缩窄——否则刻度线位置全错。
+- 两套断点（如 420px 与 500px）可叠加，分别管不同区块。
+
 ### 7.1 固定配色（不随主题）的做法
 
 默认建议"透明背景 + inherit 颜色 + rgba 灰"来适配深浅主题；但若需求是**确定的视觉**（如"亮底深字"的创角表单、"粉色皮肤"的状态栏），就固定配色，并做好三件事：
@@ -155,6 +183,20 @@ iframe 自带全局 Vue（`Vue.createApp`）+ VueRouter（用 `history: VueRoute
 维护建议：源文件放 `界面/状态栏.html`，用一个内联脚本（或本技能的 build 流程）把 HTML 同步进正则的 replaceString——避免"改了源文件忘了改正则"。
 
 写卡初稿阶段可在纯文本状态栏（宏替换）上快速验证数据正确，再升级为完整前端。调试前端：F12 看 iframe 的 Console；不用刷新酒馆整页，重渲染楼层即可（酒馆助手设置里可调"渲染深度"让最近的楼层重渲染）。
+
+### 8.1 ★截图回归：无头 Chrome 易崩 → 用"隔离预览法"
+
+改状态栏时最有效的回归手段是**无头 Chrome 截图对比**（本技能多张卡都在用）。但实测：**把整张卡内联的完整 HTML（十几万字符、多标签页、大量 JS）喂给无头 Chrome，极易 `Abnormal renderer termination`/卡死**（尤其渲染"本我/产业"这类重 JS 的页签，`--headless=new`/`old` 都翻过车，2~3 分钟无输出）。
+
+可靠替代（本项目反复验证，几秒出图）：
+
+1. 从状态栏 `replaceString` 里**只抽出需要的 `<style>…</style>` 与目标函数**（用括号配平从 `function renderXxx(` 截到对应 `}`），不要整段 JS；
+2. 拼一个**极简外壳 HTML**：`<style>{CSS}</style>` + `<div class="status-container" id="app">` + `<script>` 里 `const appData = {…mock…}` + 三个 `extract()` 出来的函数 + 一行 `renderSelf(root)`;
+3. mock 数据里**该有的节点要齐**——状态栏的 `mockData.stat_data` 常常**不含 `主角` 节点**（会渲染成"暂无数据"），需自己注入；
+4. 截图命令：`--headless=new --disable-gpu --no-sandbox --disable-dev-shm-usage --hide-scrollbars --window-size=880,1500 --virtual-time-budget=4000 --screenshot=out.png`；
+5. 想自动展开所有折叠面板：注入 `<script>setTimeout(()=>{document.querySelectorAll('.accordion-header').forEach(x=>x.click())},120)</script>`。
+
+**每次改完界面跑一轮、逐版本存档到 `输出/预览-*.png`**（既是回归基线，也能直接交付给用户看效果）。给用户确认样式时优先发**两态对照**（如"初期态 / 重度态"），一眼能看出数值→视觉的映射对不对。
 
 ## 9. 实测高频模式（来自 6 张线上卡的补充）
 

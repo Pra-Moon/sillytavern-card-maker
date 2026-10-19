@@ -1,5 +1,7 @@
 # MVU 变量框架（zod 版）完整指南
 
+> 卡专用「变量强制更新协议」的适配（外部 4.0 通用协议 → 精简审计层、`<BianLiang>`+`<JSONPatch>`）见 `references/female-statusbar-cavity.md` §7。
+
 ## 1. 工作原理
 
 MVU 是挂在酒馆助手上的脚本，变量按**消息楼层**存放：
@@ -68,8 +70,28 @@ $(() => {
 | 键可缺省 | `z.partialRecord(z.enum([...]), 值类型)` |
 | 动态键对象（物品栏/NPC） | `z.record(z.string().describe('物品名'), z.object({…}))` |
 | 必有键+可扩展 | `z.intersection(z.object({必有键...}), z.record(z.string(), 值类型))` |
+| **固定键对象 + 允许新类别**（经营/建造类玩法） | `z.object({固定类别…}).catchall(z.record(z.string(), 子对象))` |
 | 默认值 | `.prefault(值)`（新字段缺失时填充）；**不要用 `z.default`** |
 | 可整体清除的子对象 | `z.object({…}).prefault({})`（配合 JSONPatch remove 兼容） |
+
+#### 2.2.1 ★"设施/类别随进度增长"必须加 `.catchall()`（实测被静默剥离）
+
+经营/建造类卡常有"UI 里会随着游玩长出新的设施类别"的需求（建了铁匠铺 → 加工设施里多一项；新垦了渔场 → 生产设施里多一栏）。这类字段如果写成**固定键 `z.object({种植园, 牧场, 林场, 矿场})`**，AI 新增的 `渔场/盐田/高炉` 会在 zod 校验时**被悄悄丢掉**——变量管理器里看不到、状态栏当然也不显示，而且**不报错**（最难受的一类 bug）。
+
+正确姿势（两层都要）：
+
+```js
+生产设施: z.object({
+  种植园: z.record(z.string(), z.object({ 面积: num(), 状态: str('正常') })).prefault({}),
+  牧场:   z.record(z.string(), z.object({ 牲畜: z.record(z.string(), z.object({ 数量: num() })).prefault({}) })).prefault({}),
+  // …其余固定类别
+}).catchall(z.record(z.string(), z.object({}).catchall(z.any())))   // ← 新类别整体放行
+```
+
+- `.catchall(值类型)` 让 zod **保留**未知键（值类型给宽松的 `z.record(...)` 或 `z.any()`，别给严 schema 否则新类别内部字段又被剥）；
+- **前端不用改**：`renderEstate` 这类渲染器本就用 `Object.keys()` 遍历，ZOD 放行后新类别自动出现在 UI（本项目实测：加 `.catchall()` 后 `渔场` 完整保留）；
+- 更新规则里同时写一句"`产业.${产业名}.设施解锁与建造`：小型 5~15 天 / 中型 30~120 天 / 大型 6 月~2 年，含材料、工匠、劳力、现金需求"（现实化需求参照），否则 AI 不会主动长设施；
+- 校验：本地 `Schema.parse({生产设施:{渔场:{近海渔场:{面积:2}}}})` 断言 `渔场` 还在（**这是唯一能拦住"静默剥离"的办法**）。
 
 ### 2.3 transform 纠错模式（最常用）
 

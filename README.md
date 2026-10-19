@@ -9,7 +9,7 @@
 
 一个遵循 Agent Skills 规范（`SKILL.md`）的领域技能：给 AI 装上"酒馆写卡师傅"的完整方法论 + 可运行工具 + 现成模板。
 
-- 🧠 **知识**：`sillytavern-card-maker/references/` 11 份深度文档——MVU zod 变量规范、酒馆正则（含闸门校验）、EJS 提示词模板、前端界面、创角表单、小白X、卡文件格式、内容构筑、生态选型、**成人向事件演出设计**、**卡面与图像资产**
+- 🧠 **知识**：`sillytavern-card-maker/references/` 12 份深度文档——MVU zod 变量规范、酒馆正则（含闸门校验）、EJS 提示词模板、前端界面、创角表单、小白X、卡文件格式、内容构筑、生态选型、**成人向事件演出设计**、**女性主角腔内差分图**、**卡面与图像资产**
 - 🛠️ **工具**：`sillytavern-card-maker/scripts/` 5 个 Python CLI——3 个零依赖主流程工具 + 2 个维护工具（封面脚本需 Pillow）
   - `build_card.py` —— 卡工程 → 完备卡（世界书内嵌 `character_book`、正则入 `regex_scripts`、脚本入 `tavern_helper`，PNG `chara`/`ccv3` 元数据，**未知扩展字段全保真**）
   - `check_card.py` —— 工程/成品 30+ 项硬伤检查（条目约定、正则语法、闸门配套、localhost 残留、历史格式……）
@@ -79,7 +79,7 @@ sillytavern-card-maker/
 ├── LICENSE
 └── sillytavern-card-maker/      # 技能本体（整个文件夹即一个技能）
     ├── SKILL.md                 # 技能定义（frontmatter 描述触发条件）
-    ├── references/              # 11 份深度参考文档
+    ├── references/              # 12 份深度参考文档
     ├── scripts/                 # 5 个 Python 工具
     ├── templates/               # 18 个现成模板
     └── evals/                   # 评测用例
@@ -93,11 +93,10 @@ sillytavern-card-maker/
 - 依据 **291 张真实公开卡语料** 批量校准（发现并修正了正则深度语义、扩展字段丢失、历史格式兼容等问题）
 - 做过两轮子代理盲测：带技能 **100%** 通过率 vs 无技能基线 **47.8%**（3 用例 × 28 断言）
 
-## 免责声明
+## 说明
 
 - 本仓库是**制作工具与知识包**，不包含任何具体角色卡内容；不针对任何特定题材。
-- 请在遵守所在平台规则与当地法律法规的前提下使用；不得用于制作违法或侵权内容。
-- 用本工具制作的卡内容由制作者自负其责。
+- 用本工具制作的卡内容由制作者自行负责。
 
 ## 致谢
 
